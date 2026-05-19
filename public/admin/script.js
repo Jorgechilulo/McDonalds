@@ -2,7 +2,7 @@
 // CONFIGURAÇÕES GLOBAIS & CONEXÃO COM O BACKEND (MySQL)
 // ==========================================================================
 if (typeof API_BASE === 'undefined') {
-    window.API_BASE = 'http://localhost/mcdonalds-api/api.php';
+    window.API_BASE = 'http://localhost/McDonalds/mcdonalds-api/api.php';
 } else {
     window.API_BASE = API_BASE;
 }
