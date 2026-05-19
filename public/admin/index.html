@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="pt" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>McDonald's Admin - Painel de Controle</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo">
+            <div class="logo-icon">
+                <i class="fas fa-hamburger"></i>
+            </div>
+            <h2>McAdmin<span>PRO</span></h2>
+        </div>
+        
+        <nav class="nav-menu">
+            <div class="nav-item active" data-section="dashboard">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Dashboard</span>
+                <div class="indicator"></div>
+            </div>
+            <div class="nav-item" data-section="pedidos">
+                <i class="fas fa-receipt"></i>
+                <span>Pedidos Ativos</span>
+                <div class="indicator"></div>
+            </div>
+            <div class="nav-item" data-section="funcionarios">
+                <i class="fas fa-users-cog"></i>
+                <span>Funcionários</span>
+                <div class="indicator"></div>
+            </div>
+            <div class="nav-item" data-section="entregas">
+                <i class="fas fa-motorcycle"></i>
+                <span>Entregas (Motoboys)</span>
+                <div class="indicator"></div>
+            </div>
+            <div class="nav-item" data-section="relatorios">
+                <i class="fas fa-chart-line"></i>
+                <span>Consultas & Relatórios</span>
+                <div class="indicator"></div>
+            </div>
+            <div class="nav-item" data-section="estatisticas">
+                <i class="fas fa-chart-pie"></i>
+                <span>Estatísticas de Vendas</span>
+                <div class="indicator"></div>
+            </div>
+        </nav>
+        
+        <div class="user-profile">
+            <div class="avatar">
+                <i class="fas fa-user-shield"></i>
+            </div>
+            <div class="user-info">
+                <h4>Gerente Geral</h4>
+                <p>McDonald's Store</p>
+            </div>
+            <button class="theme-toggle" id="themeToggle">
+                <i class="fas fa-moon"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <header class="top-bar">
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Buscar pedidos, produtos, funcionários...">
+            </div>
+            <div class="header-actions">
+                <div class="notification">
+                    <i class="fas fa-bell"></i>
+                    <span class="badge">5</span>
+                </div>
+                <div class="quick-stats">
+                    <div class="stat">
+                        <i class="fas fa-store"></i>
+                        <span>Cozinha Online</span>
+                    </div>
+                    <div class="time-display" id="currentTime"></div>
+                </div>
+            </div>
+        </header>
+
+        <div class="content-wrapper">
+            <section id="dashboard" class="content-section active">
+                <div class="section-header">
+                    <h1 class="animate__animated animate__fadeInDown">Dashboard McDonald's</h1>
+                    <p class="subtitle">Visão geral da operação, vendas e tempos de entrega</p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card primary animate__animated animate__fadeInUp" style="animation-delay: 0.1s">
+                        <div class="stat-icon">
+                            <i class="fas fa-shopping-basket"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-pedidos">0</h3>
+                            <p>Pedidos Hoje</p>
+                        </div>
+                        <div class="stat-trend">
+                            <i class="fas fa-arrow-up"></i>
+                            <span>15%</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card success animate__animated animate__fadeInUp" style="animation-delay: 0.2s">
+                        <div class="stat-icon">
+                            <i class="fas fa-cash-register"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="faturamento-dia">0 KZ</h3>
+                            <p>Faturamento Diário</p>
+                        </div>
+                        <div class="stat-trend">
+                            <i class="fas fa-arrow-up"></i>
+                            <span>12%</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card warning animate__animated animate__fadeInUp" style="animation-delay: 0.3s">
+                        <div class="stat-icon">
+                            <i class="fas fa-motorcycle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-entregas">0</h3>
+                            <p>Entregas a Caminho</p>
+                        </div>
+                        <div class="stat-trend">
+                            <i class="fas fa-arrow-down"></i>
+                            <span>2%</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card info animate__animated animate__fadeInUp" style="animation-delay: 0.4s">
+                        <div class="stat-icon">
+                            <i class="fas fa-stopwatch"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>14 min</h3>
+                            <p>Tempo Médio de Preparo</p>
+                        </div>
+                        <div class="stat-trend text-success">
+                            <i class="fas fa-arrow-down"></i>
+                            <span>4 min</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="quick-actions">
+                    <h2>Ações Rápidas de Operação</h2>
+                    <div class="actions-grid">
+                        <button class="action-btn" onclick="abrirModalPedido()">
+                            <i class="fas fa-plus-circle"></i>
+                            <span>Lançar Pedido (Balcão)</span>
+                        </button>
+                        <button class="action-btn" onclick="abrirModalFuncionario()">
+                            <i class="fas fa-user-plus"></i>
+                            <span>Adicionar Funcionário</span>
+                        </button>
+                        <button class="action-btn" onclick="despacharEstafetaRapido()">
+                            <i class="fas fa-shipping-fast"></i>
+                            <span>Despachar Estafeta</span>
+                        </button>
+                        <button class="action-btn" onclick="gerarRelatorioVendas()">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                            <span>Fechar Caixa do Dia</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="recent-activity">
+                    <h2>Fluxo da Cozinha em Tempo Real</h2>
+                    <div class="activity-list" id="fluxo-cozinha">
+                        <div class="activity-item">
+                            <div class="activity-icon success">
+                                <i class="fas fa-check-double"></i>
+                            </div>
+                            <div class="activity-content">
+                                <p>Pedido <strong>#4829</strong> foi retirado pelo cliente (Balcão)</p>
+                                <span class="activity-time">Há 2 minutes</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="pedidos" class="content-section">
+                <div class="section-header">
+                    <h1>Gestão de Pedidos</h1>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="abrirModalPedido()">
+                            <i class="fas fa-plus"></i> Novo Pedido (PDV)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Fila de Preparação / Entrega</h3>
+                        <div class="table-controls">
+                            <div class="search-control">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="searchPedidos" placeholder="Buscar por Nº do pedido...">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nº Pedido</th>
+                                        <th>Cliente</th>
+                                        <th>Tipo</th>
+                                        <th>Total</th>
+                                        <th>Método Pagamento</th>
+                                        <th>Hora do Pedido</th>
+                                        <th>Estado</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-pedidos"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="funcionarios" class="content-section">
+                <div class="section-header">
+                    <h1>Equipa & Funcionários</h1>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="abrirModalFuncionario()">
+                            <i class="fas fa-user-plus"></i> Novo Funcionário
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Funcionários de Turno</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Nome</th>
+                                        <th>Função / Cargo</th>
+                                        <th>Salário Base</th>
+                                        <th>Estado do Turno</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-funcionarios"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="entregas" class="content-section">
+                <div class="section-header">
+                    <h1>Logística de Entregas McDelivery</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID Entrega</th>
+                                        <th>Nº Pedido</th>
+                                        <th>Estafeta / Motoboy</th>
+                                        <th>Destino</th>
+                                        <th>Taxa de Entrega</th>
+                                        <th>Tempo Decorrido</th>
+                                        <th>Estado</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-entregas"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="relatorios" class="content-section">
+                <div class="section-header">
+                    <h1>Consultas e Filtros Inteligentes</h1>
+                    <p class="subtitle">Análises estratégicas de vendas e produtos</p>
+                </div>
+
+                <div class="reports-grid">
+                    <div class="report-card">
+                        <div class="report-header">
+                            <h3><i class="fas fa-hamburger"></i> Filtro por Cargo: Vendedores</h3>
+                            <button class="btn-small" onclick="filtrarPorCargo('Vendedor')">
+                                Executar <i class="fas fa-play"></i>
+                            </button>
+                        </div>
+                        <div class="report-content" id="resultado-bigmac">
+                            <div class="empty-state">
+                                <i class="fas fa-user-tag"></i>
+                                <p>Clique para filtrar apenas os funcionários de vendas</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="report-card">
+                        <div class="report-header">
+                            <h3><i class="fas fa-money-check-alt"></i> Vendas em Dinheiro (Físico)</h3>
+                            <button class="btn-small" onclick="consultarVendasDinheiro()">
+                                Executar <i class="fas fa-play"></i>
+                            </button>
+                        </div>
+                        <div class="report-content" id="resultado-dinheiro">
+                            <div class="empty-state">
+                                <i class="fas fa-chart-line"></i>
+                                <p>Clique em Executar para filtrar pagamentos em dinheiro</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="estatisticas" class="content-section">
+                <div class="section-header">
+                    <h1>Estatísticas de Faturamento</h1>
+                    <p class="subtitle">Análise gráfica de vendas do restaurante</p>
+                </div>
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>Canais de Venda Preferidos</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="canaisVendaChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>Produtos Mais Vendidos</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="produtosChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <i class="fas fa-hamburger"></i>
+                    <span>McDonald's Admin</span>
+                </div>
+                <div class="footer-links">
+                    <a href="#">Privacidade</a>
+                    <a href="#">Termos de Uso</a>
+                    <a href="#">Suporte Interno</a>
+                </div>
+                <div class="footer-copy">
+                    © 2026 Sistema de Gestão McDonald's. Todos os direitos reservados.
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <div class="modal" id="modalPedido">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-cart-plus"></i> Lançar Novo Pedido</h3>
+                <button class="modal-close" onclick="fecharModalPedido()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="form-pedido" onsubmit="event.preventDefault();">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="nome-cliente">Nome do Cliente</label>
+                            <input type="text" id="nome-cliente" required placeholder="Ex: Carlos Antunes">
+                        </div>
+                        <div class="form-group">
+                            <label for="tipo-pedido">Tipo de Canal</label>
+                            <select id="tipo-pedido" required>
+                                <option value="">Selecione...</option>
+                                <option value="Balcão">Balcão</option>
+                                <option value="Drive-Thru">Drive-Thru</option>
+                                <option value="McDelivery">McDelivery</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="total-valor">Valor Total (KZ)</label>
+                            <input type="number" id="total-valor" required placeholder="Ex: 4500">
+                        </div>
+                        <div class="form-group">
+                            <label for="metodo-pagamento">Forma de Pagamento</label>
+                            <select id="metodo-pagamento" required>
+                                <option value="">Selecione...</option>
+                                <option value="Dinheiro">Dinheiro</option>
+                                <option value="Cartão Multicaixa">Cartão Multicaixa</option>
+                                <option value="Transferência">Transferência</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="fecharModalPedido()">Cancelar</button>
+                <button class="btn-primary" onclick="adicionarPedido()">Confirmar Pedido</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modalFuncionario">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-plus"></i> Registar Novo Funcionário</h3>
+                <button class="modal-close" onclick="fecharModalFuncionario()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="form-funcionario" onsubmit="event.preventDefault();">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="func-nome">Nome Completo</label>
+                            <input type="text" id="func-nome" required placeholder="Ex: João Mateus">
+                        </div>
+                        <div class="form-group">
+                            <label for="func-cargo">Cargo / Função Operacional</label>
+                            <select id="func-cargo" required>
+                                <option value="">Selecione o acesso...</option>
+                                <option value="Administrador">Administrador</option>
+                                <option value="Vendedor">Vendedor (Operador de Caixa)</option>
+                                <option value="Motoboy">Motoboy (Estafeta Delivery)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="func-salario">Salário Base (KZ)</label>
+                            <input type="number" id="func-salario" required placeholder="Ex: 150000">
+                        </div>
+                        <div class="form-group">
+                            <label for="func-email">E-mail de Acesso (Login React)</label>
+                            <input type="email" id="func-email" required placeholder="exemplo@mcdonalds.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="func-senha">Senha Secreta de Acesso</label>
+                            <input type="password" id="func-senha" required placeholder="Defina a senha inicial">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="fecharModalFuncionario()">Cancelar</button>
+                <button class="btn-primary" onclick="adicionarFuncionario()">Contratar Funcionário</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">
+        <div class="toast-content">
+            <i class="fas fa-check-circle toast-icon" id="toastIcon"></i>
+            <div class="toast-message" id="toastMessage">Operação realizada com sucesso!</div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p id="loadingText">Sincronizando com a Cozinha...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>
