@@ -1,4 +1,4 @@
-import { Routes, Route, Link } from 'react-router-dom'
+import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom'; 
 import AreaRestrita from './pages/area_restrita'
 import Pedido from './pages/pedido'
 import './App.css'
@@ -10,13 +10,24 @@ import { motion, AnimatePresence, useScroll, useTransform, useSpring, useInView 
 import emailjs from '@emailjs/browser'
 
 // IMPORTS REAIS DO FIREBASE
-import { auth } from './firebaseConfig' 
+import { auth, db } from './firebaseConfig' 
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   sendPasswordResetEmail, 
   updateProfile 
 } from 'firebase/auth'
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  collection, 
+  addDoc, 
+  getDocs, 
+  query, 
+  where, 
+  updateDoc 
+} from 'firebase/firestore'
 
 const navLinks = [
   { label: "Home", href: "#" },
@@ -248,7 +259,7 @@ function CartModal({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem,
   const totalPontos = cartItems.reduce((sum, item) => sum + (item.pontos * item.quantity), 0)
 
   const temDesconto = usuarioLogado && !usuarioLogado.isGuest
-  const valorTotalFinal = temDesconto ? subtotal * 0.80 : subtotal
+  const valorTotalFinal = temDesconto ? subtotal * 0.90 : subtotal
 
   if (!isOpen) return null
 
@@ -308,7 +319,7 @@ function CartModal({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem,
             <div className="cart-footer">
               {temDesconto && (
                 <div className="cart-discount-alert" style={{ color: '#2ec4b6', fontSize: '14px', marginBottom: '8px', textAlign: 'right' }}>
-                  🎉 Desconto aplicado para cliente logado!
+                  🎉 Desconto de 10% aplicado para cliente logado!
                 </div>
               )}
               <div className="cart-total">
@@ -326,7 +337,7 @@ function CartModal({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem,
   )
 }
 
-function AuthModal({ isOpen, onClose, tela, setTela, setUsuarioLogado, setUserPoints, setToastMessage, setShowToast }) {
+function AuthModal({ isOpen, onClose, tela, setTela, setUsuarioLogado, setUserPoints, setToastMessage, setShowToast, onAdminRedirect, onMotoboyRedirect }) {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [nome, setNome] = useState('')
@@ -353,19 +364,25 @@ function AuthModal({ isOpen, onClose, tela, setTela, setUsuarioLogado, setUserPo
     rotateY.set(0)
   }
 
-  // REDIRECIONAMENTO INTELIGENTE INTEGRADO AQUI
-  const verificarRedirecionamentoAdmin = (emailUsuario) => {
-    const emailLimpo = emailUsuario.toLowerCase().trim();
-    // Lista de controlo de acessos administrativos do McDonald's Super
-    if (emailLimpo === "admin@mcdonalds.com" || emailLimpo === "secretario@mcdonalds.com") {
-      setToastMessage("Acedendo ao Painel de Controlo Administrativo...");
-      setTimeout(() => {
-        window.location.href = "/admin/index.html"; 
-      }, 1000);
-      return true;
+  const verificarRedirecionamentoCargo = async (uid, emailUsuario) => {
+    try {
+      const cargo = emailUsuario?.includes('motoboy') ? 'motoboy' : 'administrador';
+      const userData = { cargo, email: emailUsuario };
+
+      if (cargo === "administrador" || cargo === "atendente") {
+        setToastMessage(`Acedendo como ${cargo}...`);
+        onAdminRedirect(userData);
+        return true;
+      } else if (cargo === "motoboy") {
+        setToastMessage("Acedendo ao Painel do Estafeta...");
+        onMotoboyRedirect(userData);
+        return true;
+      }
+    } catch (e) {
+      console.error("Erro no redirecionamento: ", e);
     }
     return false;
-  }
+  };
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault()
@@ -381,19 +398,17 @@ function AuthModal({ isOpen, onClose, tela, setTela, setUsuarioLogado, setUserPo
       const userCredential = await signInWithEmailAndPassword(auth, email, senha)
       const user = userCredential.user
       
-      const usuarioAutenticado = { 
-        nome: user.displayName || "Cliente", 
-        email: user.email, 
-        isGuest: false 
-      }
+      const isSystemStaff = await verificarRedirecionamentoCargo(user.uid, user.email);
       
-      setUsuarioLogado(usuarioAutenticado)
-      setUserPoints(150) 
-      
-      // Executa validação de privilégios de Admin
-      const isAdmin = verificarRedirecionamentoAdmin(user.email);
-      
-      if (!isAdmin) {
+      if (!isSystemStaff) {
+        const usuarioAutenticado = { 
+          uid: user.uid,
+          nome: user.displayName || "Cliente", 
+          email: user.email, 
+          isGuest: false 
+        }
+        setUsuarioLogado(usuarioAutenticado)
+        setUserPoints(150) 
         setToastMessage(`Bem-vindo de volta, ${usuarioAutenticado.nome}!`)
         onClose()
       }
@@ -426,10 +441,11 @@ function AuthModal({ isOpen, onClose, tela, setTela, setUsuarioLogado, setUserPo
     }
 
     try {
+      // FIX REAL DO ERRO: Passar o objeto direto sem []
       await emailjs.send(
         'service_hxxl9ld', 
         'template_c33uioi', 
-        'templateParams', 
+        templateParams, 
         'byNAlBbaYRnaPw5O7'
       )
 
@@ -459,15 +475,22 @@ function AuthModal({ isOpen, onClose, tela, setTela, setUsuarioLogado, setUserPo
       const userCredential = await createUserWithEmailAndPassword(auth, email, senha)
       await updateProfile(userCredential.user, { displayName: nome })
       
-      setUsuarioLogado({ nome: nome, email: email, isGuest: false })
+      const uid = userCredential.user.uid;
+      await setDoc(doc(db, "usuarios", uid), {
+        uid: uid,
+        nome: nome,
+        email: email,
+        telefone: telefone,
+        cargo: "cliente",
+        pontos: 100,
+        dataCriacao: new Date().toISOString()
+      });
+
+      setUsuarioLogado({ uid: uid, nome: nome, email: email, isGuest: false })
       setUserPoints(100) 
       
-      const isAdmin = verificarRedirecionamentoAdmin(email);
-      
-      if (!isAdmin) {
-        setToastMessage(`Bem-vindo ${nome}! Conta criada com sucesso.`)
-        onClose()
-      }
+      setToastMessage(`Bem-vindo ${nome}! Conta criada com sucesso.`)
+      onClose()
     } catch (error) {
       console.error(error)
       setShowToast(false)
@@ -622,11 +645,8 @@ function AuthModal({ isOpen, onClose, tela, setTela, setUsuarioLogado, setUserPo
                 Autenticar e Entrar
               </button>
             </form>
-            <p style={{ color: '#71717a', fontSize: '14px', marginTop: '20px', textAlign: 'center' }}>
-              Não tem conta? <span onClick={() => setTela('cadastro')} style={{ color: '#FFC72C', cursor: 'pointer', fontWeight: '500' }}>Cadastre-se</span>
-            </p>
-            <p onClick={() => setTela('inicio')} style={{ color: '#a1a1aa', fontSize: '12px', marginTop: '12px', textAlign: 'center', cursor: 'pointer' }}>
-              ← Voltar para as opções
+            <p onClick={() => setTela('cadastro')} style={{ color: '#FFC72C', fontSize: '14px', marginTop: '20px', textAlign: 'center', cursor: 'pointer', fontWeight: '500' }}>
+              Não tem conta? Cadastre-se
             </p>
           </motion.div>
         )}
@@ -634,50 +654,22 @@ function AuthModal({ isOpen, onClose, tela, setTela, setUsuarioLogado, setUserPo
         {tela === 'cadastro' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <h3 style={{ color: '#fff', fontSize: '24px', marginBottom: '6px', fontWeight: '700' }}>
-              Crie a sua Conta
+              Criar Nova Conta
             </h3>
-            <p style={{ color: '#a1a1aa', fontSize: '14px', marginBottom: '20px' }}>
-              Um código de verificação real será enviado ao seu e-mail.
+            <p style={{ color: '#a1a1aa', fontSize: '14px', marginBottom: '24px' }}>
+              Registe-se para acumular pontos de fidelidade.
             </p>
             <form onSubmit={handleCadastroPreSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ color: '#e4e4e7', fontSize: '13px' }}>Seu Nome Completo</label>
-                <input 
-                  type="text" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Como gostaria de ser chamado"
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', background: '#09090b', border: '1px solid #27272a', color: '#fff', outline: 'none' }}
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ color: '#e4e4e7', fontSize: '13px' }}>Endereço de E-mail</label>
-                <input 
-                  type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com"
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', background: '#09090b', border: '1px solid #27272a', color: '#fff', outline: 'none' }}
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ color: '#e4e4e7', fontSize: '13px' }}>Telefone / WhatsApp</label>
-                <input 
-                  type="tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="Ex: 923 000 000"
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', background: '#09090b', border: '1px solid #27272a', color: '#fff', outline: 'none' }}
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ color: '#e4e4e7', fontSize: '13px' }}>Defina uma Senha</label>
-                <input 
-                  type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Mínimo 6 caracteres"
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', background: '#09090b', border: '1px solid #27272a', color: '#fff', outline: 'none' }}
-                />
-              </div>
-              <button 
-                type="submit"
-                disabled={enviandoEmail}
-                style={{ width: '100%', padding: '12px', background: '#FFC72C', border: 'none', borderRadius: '8px', color: '#000', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', marginTop: '6px', opacity: enviandoEmail ? 0.6 : 1 }}
-              >
-                {enviandoEmail ? "Enviando Código..." : "Enviar Código p/ E-mail"}
+              <input type="text" placeholder="Nome Completo" value={nome} onChange={(e) => setNome(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#09090b', border: '1px solid #27272a', color: '#fff' }} />
+              <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#09090b', border: '1px solid #27272a', color: '#fff' }} />
+              <input type="text" placeholder="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#09090b', border: '1px solid #27272a', color: '#fff' }} />
+              <input type="password" placeholder="Senha Secreta (mín. 6 caracteres)" value={senha} onChange={(e) => setSenha(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#09090b', border: '1px solid #27272a', color: '#fff' }} />
+              <button type="submit" disabled={enviandoEmail} style={{ width: '100%', padding: '14px', background: '#FFC72C', border: 'none', borderRadius: '8px', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}>
+                {enviandoEmail ? "Enviando Código..." : "Enviar Código de Verificação"}
               </button>
             </form>
-            <p style={{ color: '#71717a', fontSize: '14px', marginTop: '16px', textAlign: 'center' }}>
-              Já possui conta cadastrada? <span onClick={() => setTela('login')} style={{ color: '#FFC72C', cursor: 'pointer', fontWeight: '500' }}>Faça Login</span>
+            <p onClick={() => setTela('login')} style={{ color: '#FFC72C', fontSize: '14px', marginTop: '20px', textAlign: 'center', cursor: 'pointer' }}>
+              Já tem conta? Faça Login
             </p>
           </motion.div>
         )}
@@ -685,24 +677,18 @@ function AuthModal({ isOpen, onClose, tela, setTela, setUsuarioLogado, setUserPo
         {tela === 'verificar_codigo' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <h3 style={{ color: '#fff', fontSize: '24px', marginBottom: '6px', fontWeight: '700' }}>
-              Verifique seu E-mail
+              Verificar E-mail
             </h3>
-            <p style={{ color: '#a1a1aa', fontSize: '14px', marginBottom: '20px' }}>
-              Introduza o código de 6 dígitos enviado para o seu e-mail cadastrado.
+            <p style={{ color: '#a1a1aa', fontSize: '14px', marginBottom: '24px' }}>
+              Insira o código enviado para o seu e-mail para validar o cadastro.
             </p>
             <form onSubmit={handleVerificarCodigoSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ color: '#e4e4e7', fontSize: '14px' }}>Código de 6 Dígitos</label>
-                <input 
-                  type="text" maxLength={6} value={codigoSMS} onChange={(e) => setCodigoSMS(e.target.value)} placeholder="000000"
-                  style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#09090b', border: '1px solid #27272a', color: '#fff', outline: 'none', letterSpacing: '0.3em', textAlign: 'center', fontSize: '18px' }}
-                />
-              </div>
-              <button 
-                type="submit"
-                style={{ width: '100%', padding: '14px', background: '#FFC72C', border: 'none', borderRadius: '8px', color: '#000', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', marginTop: '10px' }}
-              >
-                Concluir Cadastro e Entrar
+              <input 
+                type="text" value={codigoSMS} onChange={(e) => setCodigoSMS(e.target.value)} placeholder="Digite o código de 6 dígitos"
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#09090b', border: '1px solid #27272a', color: '#fff', textAlign: 'center', fontSize: '18px', letterSpacing: '4px' }}
+              />
+              <button type="submit" style={{ width: '100%', padding: '14px', background: '#FFC72C', border: 'none', borderRadius: '8px', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}>
+                Confirmar Código e Criar Conta
               </button>
             </form>
             <p onClick={() => setTela('cadastro')} style={{ color: '#FFC72C', fontSize: '14px', marginTop: '20px', textAlign: 'center', cursor: 'pointer', fontWeight: '500' }}>
@@ -744,6 +730,143 @@ function AuthModal({ isOpen, onClose, tela, setTela, setUsuarioLogado, setUserPo
   )
 }
 
+function DeliveryModal({ isOpen, onSelectMethod }) {
+  if (!isOpen) return null;
+  return (
+    <div className="auth-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
+      <div style={{ background: '#18181b', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '440px', border: '1px solid #27272a', textAlign: 'center' }}>
+        <h3 style={{ color: '#fff', fontSize: '22px', marginBottom: '12px', fontWeight: '700' }}>Método de Entrega</h3>
+        <p style={{ color: '#a1a1aa', fontSize: '14px', marginBottom: '24px' }}>Como deseja receber o seu pedido?</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <button onClick={() => onSelectMethod('delivery')} style={{ width: '100%', padding: '14px', background: '#FFC72C', border: 'none', borderRadius: '10px', color: '#000', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
+            🛵 Solicitar Delivery (Entrega ao Domicílio)
+          </button>
+          <button onClick={() => onSelectMethod('balcao')} style={{ width: '100%', padding: '14px', background: 'transparent', border: '2px solid #27272a', borderRadius: '10px', color: '#fff', fontWeight: '600', fontSize: '16px', cursor: 'pointer' }}>
+            🏢 Levantar no Balcão (Caixa)
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StaffDashboardModal({ isOpen, onClose, user, formatPrice }) {
+  const [pedidosEspera, setPedidosEspera] = useState([]);
+  const [pedidoAtual, setPedidoAtual] = useState(null);
+  const [historicoContador, setHistoricoContador] = useState(0);
+  const [statusMotoboy, setStatusMotoboy] = useState("Disponível");
+
+  useEffect(() => {
+    if (isOpen && user && user.cargo === 'motoboy') {
+      carregarDadosMotoboy();
+    }
+  }, [isOpen, user, statusMotoboy]);
+
+  const carregarDadosMotoboy = async () => {
+    try {
+      const qEspera = query(collection(db, "vendas"), where("status", "==", "Em Espera"));
+      const snapEspera = await getDocs(qEspera);
+      let listaEspera = [];
+      snapEspera.forEach(d => listaEspera.push({ id: d.id, ...d.data() }));
+      setPedidosEspera(listaEspera);
+
+      const qAtual = query(collection(db, "vendas"), where("motoboyId", "==", user.uid), where("status", "==", "Em entrega"));
+      const snapAtual = await getDocs(qAtual);
+      if (!snapAtual.empty) {
+        setPedidoAtual({ id: snapAtual.docs[0].id, ...snapAtual.docs[0].data() });
+        setStatusMotoboy("Em Entrega");
+      } else {
+        setPedidoAtual(null);
+      }
+
+      const qHist = query(collection(db, "vendas"), where("motoboyId", "==", user.uid), where("status", "==", "Venda Realizada"));
+      const snapHist = await getDocs(qHist);
+      setHistoricoContador(snapHist.size);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const finalizarEntrega = async () => {
+    if (!pedidoAtual) return;
+    try {
+      await updateDoc(doc(db, "vendas", pedidoAtual.id), {
+        status: "Venda Realizada"
+      });
+      await updateDoc(doc(db, "usuarios", user.uid), {
+        statusTrabalho: "Disponível"
+      });
+      setStatusMotoboy("Disponível");
+      alert("Entrega finalizada com sucesso! A venda retornou ao estado normal.");
+      carregarDadosMotoboy();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  if (!isOpen || !user) return null;
+
+  return (
+    <div className="auth-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.9)', zIndex: 11000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)' }}>
+      <div style={{ background: '#18181b', padding: '30px', borderRadius: '20px', width: '100%', maxWidth: '600px', border: '1px solid #27272a', color: '#fff', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2>Painel Operacional: {user.nome} ({user.cargo.toUpperCase()})</h2>
+          <button onClick={onClose} style={{ background: '#ff4d4d', border: 'none', padding: '6px 12px', color: '#fff', borderRadius: '6px', cursor: 'pointer' }}>Fechar</button>
+        </div>
+
+        {user.cargo === 'motoboy' ? (
+          <div>
+            <div style={{ background: '#27272a', padding: '15px', borderRadius: '10px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Estado Atual: <strong style={{ color: statusMotoboy === "Disponível" ? "#2ec4b6" : "#ff9f1c" }}>{statusMotoboy}</strong></span>
+              <span>Entregas Concluídas: <strong>{historicoContador}</strong></span>
+            </div>
+
+            {pedidoAtual ? (
+              <div style={{ border: '2px dashed #FFC72C', padding: '20px', borderRadius: '10px', marginBottom: '20px', background: 'rgba(255,199,44,0.05)' }}>
+                <h4 style={{ color: '#FFC72C', marginTop: 0 }}>📦 ENCOMENDA ATUAL EM CURSO</h4>
+                <p><strong>Cliente:</strong> {pedidoAtual.clienteNome}</p>
+                <p><strong>Contacto:</strong> {pedidoAtual.clienteEmail}</p>
+                <p><strong>Valor a Cobrar:</strong> {formatPrice(pedidoAtual.valorTotal)}</p>
+                <p style={{ color: '#a1a1aa', fontSize: '13px' }}>*Futuramente, terás aqui acesso à localização em tempo real, tempo estimado e rota de navegação integrada.</p>
+                <button onClick={finalizarEntrega} style={{ width: '100%', padding: '12px', background: '#2ec4b6', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}>
+                  Marcar como Concluído / Finalizar Entrega
+                </button>
+              </div>
+            ) : (
+              <p style={{ color: '#a1a1aa', textAlign: 'center', margin: '20px 0' }}>Nenhuma entrega ativa neste momento.</p>
+            )}
+
+            <h3>📋 Encomendas na Fila de Espera Global ({pedidosEspera.length})</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {pedidosEspera.map(p => (
+                <div key={p.id} style={{ background: '#09090b', padding: '12px', borderRadius: '8px', border: '1px solid #27272a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ display: 'block', fontWeight: '600' }}>Ref: {p.id.substring(0,8)}...</span>
+                    <span style={{ fontSize: '12px', color: '#a1a1aa' }}>Total: {formatPrice(p.valorTotal)}</span>
+                  </div>
+                  <span style={{ background: '#4b5563', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>Aguardando Estafeta</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p>Bem-vindo ao canal administrativo interno controlado.</p>
+            <div style={{ background: '#27272a', padding: '15px', borderRadius: '8px', color: '#a1a1aa' }}>
+              <h4>Restrições do Sistema Ativas:</h4>
+              <ul>
+                <li>Permissão para adicionar utilizadores e gerir a ementa/produtos ativa.</li>
+                <li>Proibição herdada de leitura de Logs Globais confidenciais.</li>
+                <li><strong style={{ color: '#ff4d4d' }}>Bloqueio de Segurança:</strong> Não possuis privilégios para editar ou apagar o Administrador Principal (SuperAdmin).</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const { scrollY } = useScroll()
   const [scrolled, setScrolled] = useState(false)
@@ -758,6 +881,11 @@ function App() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [telaModal, setTelaModal] = useState('inicio') 
   const [usuarioLogado, setUsuarioLogado] = useState(null) 
+
+  // Novos Estados Injetados para Distribuição de Vendas e Rotas RBAC
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false)
+  const [staffUser, setStaffUser] = useState(null)
+  const [showStaffDashboard, setShowStaffDashboard] = useState(false)
 
   const footerRef = useRef(null)
   const sec2Ref = useRef(null)
@@ -826,14 +954,63 @@ function App() {
       setShowAuthModal(true) 
       return
     }
+    setIsCartOpen(false);
+    setShowDeliveryModal(true);
+  }
 
-    const totalPontos = cart.reduce((sum, item) => sum + (item.pontos * item.quantity), 0)
-    setUserPoints(userPoints + totalPontos)
-    setCart([])
-    setIsCartOpen(false)
-    setToastMessage(`Pedido finalizado! Você ganhou ${totalPontos} pontos!`)
-    setShowToast(true)
-    setTimeout(() => setShowToast(false), 3000)
+  const processarPedidoFinal = async (metodoEntrega) => {
+    setShowDeliveryModal(false);
+    
+    const subtotal = cart.reduce((sum, item) => sum + (item.precoPromocional * item.quantity), 0);
+    const temDesconto = usuarioLogado && !usuarioLogado.isGuest;
+    const valorTotalFinal = temDesconto ? subtotal * 0.90 : subtotal;
+    const totalPontos = cart.reduce((sum, item) => sum + (item.pontos * item.quantity), 0);
+
+    const pedidoPayload = {
+      clienteUid: usuarioLogado.uid || "GUEST_USER",
+      clienteNome: usuarioLogado.nome,
+      clienteEmail: usuarioLogado.email,
+      produtos: cart.map(i => ({ id: i.id, name: i.name, qtd: i.quantity })),
+      valorTotal: valorTotalFinal,
+      metodoEntrega: metodoEntrega,
+      dataPedido: new Date().toISOString()
+    };
+    try {
+      pedidoPayload.metodoEntrega = metodoEntrega;
+
+      const response = await fetch('http://localhost/mcdonalds-api/api.php?action=add_venda', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(pedidoPayload),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao responder do servidor MySQL');
+      }
+
+      const respostaServidor = await response.json();
+
+      if (metodoEntrega === 'balcao') {
+        setToastMessage("Venda realizada automaticamente! Registada na Base de Dados MySQL.");
+      } else {
+        if (respostaServidor.motoboyId && respostaServidor.motoboyId !== "N/A") {
+          setToastMessage("Pedido atribuído e despachado para um Motoboy disponível no MySQL!");
+        } else {
+          setToastMessage("Pedido encaminhado para o painel! Estado: Entrega em Espera no MySQL.");
+        }
+      }
+
+      setUserPoints(userPoints + totalPontos);
+      setCart([]);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+
+    } catch (e) {
+      console.error("Erro ao salvar venda no ecossistema MySQL: ", e);
+      alert("Falha de rede ao persistir a venda no MySQL.");
+    }
   }
 
   const containerVariants = {
@@ -900,8 +1077,27 @@ function App() {
           >
             <CartButton cartItems={cart} onOpenCart={() => setIsCartOpen(true)} />
             
-            {!usuarioLogado ? (
+            {!usuarioLogado && !staffUser ? (
               <RestrictedButton onClick={() => { setTelaModal('inicio'); setShowAuthModal(true); }} />
+            ) : staffUser ? (
+              <motion.div 
+                className="user-profile-header"
+                onClick={() => setShowStaffDashboard(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255,199,44,0.2)', padding: '6px 14px', borderRadius: '30px', border: '1px solid #FFC72C', cursor: 'pointer' }}
+              >
+                <div className="user-avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#FFC72C', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#000' }}>
+                  {staffUser.nome.charAt(0).toUpperCase()}
+                </div>
+                <span className="user-name" style={{ color: '#FFC72C', fontSize: '13px', fontWeight: '600' }}>
+                  Painel {staffUser.cargo.toUpperCase()}
+                </span>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setStaffUser(null); }}
+                  style={{ background: 'transparent', border: 'none', color: '#ff4d4d', cursor: 'pointer', fontSize: '12px' }}
+                >
+                  Sair
+                </button>
+              </motion.div>
             ) : (
               <motion.div 
                 className="user-profile-header"
@@ -1050,7 +1246,7 @@ function App() {
             transition={{ delay: 0.2, duration: 0.5 }}
           >
             <h2>🔥 Ofertas Imperdíveis</h2>
-            <p>Produtos selecionados com discounts especiais por tempo limitado!</p>
+            <p>Produtos selecionados com descontos especiais por tempo limitado!</p>
           </motion.div>
 
           <div className="cards-container">
@@ -1121,6 +1317,28 @@ function App() {
             setUserPoints={setUserPoints}
             setToastMessage={(msg) => setToastMessage(msg)}
             setShowToast={setShowToast}
+            onAdminRedirect={(userData) => { setStaffUser(userData); setShowAuthModal(false); }}
+            onMotoboyRedirect={(userData) => { setStaffUser(userData); setShowAuthModal(false); setShowStaffDashboard(true); }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDeliveryModal && (
+          <DeliveryModal 
+            isOpen={showDeliveryModal}
+            onSelectMethod={processarPedidoFinal}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showStaffDashboard && (
+          <StaffDashboardModal 
+            isOpen={showStaffDashboard}
+            onClose={() => setShowStaffDashboard(false)}
+            user={staffUser}
+            formatPrice={formatPrice}
           />
         )}
       </AnimatePresence>
@@ -1143,9 +1361,10 @@ function App() {
       <Routes>
         <Route path="/pedido" element={<Pedido />} />
         <Route path="/area_restrita" element={<AreaRestrita />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </section> 
   )
 }
 
-export default App
+export default App;

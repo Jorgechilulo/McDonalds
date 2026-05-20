@@ -3,6 +3,8 @@ import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 // IMPORTANTE: Adicionado o getAuth para funcionar a autenticação real
 import { getAuth } from "firebase/auth"; 
+// CORREÇÃO: Importar o Firestore para corrigir o erro do 'db'
+import { getFirestore } from "firebase/firestore"; 
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -21,3 +23,6 @@ const analytics = getAnalytics(app);
 
 // IMPORTANTE: Inicializa e EXPORTA o auth para o seu App.jsx usar
 export const auth = getAuth(app);
+
+// CORREÇÃO: Inicializa e EXPORTA o db (Firestore) para corrigir a tela branca do seu App.jsx
+export const db = getFirestore(app);
